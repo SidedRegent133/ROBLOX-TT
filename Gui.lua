@@ -1,3 +1,18 @@
+-- language: Luau, file: Gui.lua, target: Roblox executor (Synapse/Fluxus/Solara), returns { Init } for Loader.lua
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local Gui = {}
+
+------------------------------------------------------------- video sources
+-- resolution order for VIDEOS:
+--   1. USE_ASSET_IDS = true -> uploaded roblox video assets (dashboard upload,
+--      Premium required), ids pasted into ASSET_IDS in the same slot order as FILES
+--   2. HOSTED urls present   -> streamed straight from the host
+--   3. otherwise             -> the mp4s sitting in this repo
+local USE_ASSET_IDS = false
+
+-- 17 clips, uploaded so the engine can stream them without a roblox upload
 local HOSTED = {
     "https://files.catbox.moe/frzu3r.mp4",
     "https://files.catbox.moe/ropx9x.mp4",
@@ -16,26 +31,13 @@ local HOSTED = {
     "https://files.catbox.moe/60zx96.mp4",
     "https://files.catbox.moe/nboibe.mp4",
     "https://files.catbox.moe/jn760x.mp4",
-
 }
-
--- Roblox executor (Synapse/Fluxus/Solara), returns { Init } for Loader.lua
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-
-local Gui = {}
-
-------------------------------------------------------------- video sources
--- false -> streams the mp4 straight out of the repo (no upload)
--- true  -> uploaded roblox video assets (dashboard upload, Premium required),
---          ids pasted into ASSET_IDS in the same slot order as FILES
-local USE_ASSET_IDS = false
-
-local REPO_RAW = "https://raw.githubusercontent.com/SidedRegent133/ROBLOX-TT/main/"
 
 local ASSET_IDS = {
     -- "1234567890",
 }
+
+local REPO_RAW = "https://raw.githubusercontent.com/SidedRegent133/ROBLOX-TT/main/"
 
 local FILES = {
     "0072decf9cdfee236c5363424fc4c22b.mp4",
@@ -58,14 +60,15 @@ local FILES = {
 }
 
 local VIDEOS = {}
-if USE_ASSET_IDS then
+if USE_ASSET_IDS and #ASSET_IDS > 0 then
     for i, id in ipairs(ASSET_IDS) do
         VIDEOS[i] = "rbxassetid://" .. tostring(id)
     end
 elseif #HOSTED > 0 then
     for i, url in ipairs(HOSTED) do
         VIDEOS[i] = url
-    else
+    end
+else
     for i, file in ipairs(FILES) do
         VIDEOS[i] = REPO_RAW .. file
     end
@@ -114,7 +117,7 @@ local function pick(step)
 end
 
 -- every property assignment is defended: one rejected property on an unknown
--- client build used to abort the whole Init and leave a dead frame behind
+-- client build used to abort the whole build and leave a dead black frame
 local function setProps(inst, props)
     if type(props) ~= "table" then
         return
@@ -122,11 +125,11 @@ local function setProps(inst, props)
     local parent = props.Parent
     for k, v in pairs(props) do
         if k ~= "Parent" then
-            local ok, err = pcall(function()
+            local ok = pcall(function()
                 inst[k] = v
             end)
             if not ok then
-                warn(("[TT] %s.%s rejected: %s"):format(inst.ClassName, tostring(k), tostring(err)))
+                warn(("[TT] %s.%s rejected"):format(inst.ClassName, tostring(k)))
             end
         end
     end
@@ -138,7 +141,7 @@ end
 local function make(class, props)
     local ok, inst = pcall(Instance.new, class)
     if not ok or not inst then
-        warn("[TT] cannot create " .. tostring(class) .. ": " .. tostring(inst))
+        warn("[TT] cannot create " .. tostring(class))
         return nil
     end
     setProps(inst, props)
@@ -146,7 +149,7 @@ local function make(class, props)
 end
 
 ------------------------------------------------------------- error surface
--- if the build dies, paint the reason on screen instead of leaving a black hole
+-- a dead build paints its reason on screen instead of leaving a black hole
 local function showFatal(playerGui, err)
     warn("[TT] fatal: " .. tostring(err))
     local screen = Instance.new("ScreenGui")
@@ -157,8 +160,8 @@ local function showFatal(playerGui, err)
     screen.Parent = playerGui
 
     local box = Instance.new("TextLabel")
-    box.Size = UDim2.new(0.8, 0, 0, 120)
-    box.Position = UDim2.fromScale(0.5, 0.15)
+    box.Size = UDim2.new(0.8, 0, 0, 140)
+    box.Position = UDim2.fromScale(0.5, 0.12)
     box.AnchorPoint = Vector2.new(0.5, 0)
     box.BackgroundColor3 = Color3.fromRGB(120, 12, 24)
     box.BorderSizePixel = 0
@@ -166,18 +169,18 @@ local function showFatal(playerGui, err)
     box.TextSize = 14
     box.TextWrapped = true
     box.TextColor3 = WHITE
-    box.Text = "[TT] " .. tostring(err) .. "\n\npaste this to fix it"
+    box.Text = "[TT] fatal:\n" .. tostring(err)
     box.Parent = screen
     return screen
 end
 
 ------------------------------------------------------------- build
 local function build(playerGui)
-    local viewport = workspace.CurrentCamera.ViewportSize
+    local cam = workspace.CurrentCamera
+    local viewport = cam and cam.ViewportSize or Vector2.new(1280, 720)
     local locked = false
     local lastSkip = 0
     local showTag = 0
-    local problems = 0
 
     local screen = make("ScreenGui", {
         Name = GUI_NAME,
@@ -331,10 +334,10 @@ local function build(playerGui)
     })
 
     local mode = USE_ASSET_IDS and "asset" or "url"
+
     local function hintText()
         local state = locked and "LOCKED - SCROLL/SWIPE" or "DRAG TO MOVE"
-        return ("%s | %d clips | %s%s"):format(mode, #VIDEOS, state, problems > 0
-            and (" | " .. problems .. " prop fails") or "")
+        return ("%s | %d clips | %s"):format(mode, #VIDEOS, state)
     end
 
     ------------------------------------------------------------- playback
@@ -358,14 +361,14 @@ local function build(playerGui)
             end)
         end
         if not ok then
-            status.Text = "SLOT " .. index .. " REJECTED\nthis client has no video property"
+            status.Text = "SLOT " .. index .. " REJECTED\nno video property on this client"
             warn("[TT] slot " .. index .. " rejected: " .. uri)
             return
         end
         pcall(function() video:Play() end)
         print("[TT] loading slot " .. index .. " -> " .. uri)
 
-        coroutine.wrap(function()
+        task.spawn(function()
             local deadline = os.clock() + LOAD_WAIT
             while tag == showTag and not video.IsLoaded and os.clock() < deadline do
                 task.wait(0.1)
@@ -378,8 +381,8 @@ local function build(playerGui)
                 pcall(function() video:Play() end)
             else
                 status.Text = "SLOT " .. index .. " WILL NOT LOAD\n"
-                    .. (USE_ASSET_IDS and "asset id is wrong or still moderating"
-                        or "this client blocks remote urls - set USE_ASSET_IDS = true")
+                    .. (USE_ASSET_IDS and "asset id wrong or still moderating"
+                        or "client blocks remote urls - set USE_ASSET_IDS = true")
                 warn("[TT] slot " .. index .. " never loaded: " .. uri)
             end
         end)
@@ -427,8 +430,8 @@ local function build(playerGui)
     local touchStart = nil
 
     local function clampToScreen()
-        local cam = workspace.CurrentCamera
-        local view = cam and cam.ViewportSize or Vector2.new(viewport.X, viewport.Y)
+        local cam2 = workspace.CurrentCamera
+        local view = cam2 and cam2.ViewportSize or viewport
         local size = window.AbsoluteSize
         local left = math.clamp(window.AbsolutePosition.X, 0, math.max(0, view.X - size.X))
         local top = math.clamp(window.AbsolutePosition.Y, 0, math.max(0, view.Y - size.Y))
@@ -528,18 +531,12 @@ function Gui.Init()
         old:Destroy()
     end
 
-    local ok, err = pcall(build, playerGui)
+    local ok, screen = pcall(build, playerGui)
     if not ok then
-        showFatal(playerGui, err)
+        showFatal(playerGui, screen)
         return nil
     end
-    return err -- build returns the screen on success
+    return screen
 end
 
 return Gui
-
-
-
-
-
-
