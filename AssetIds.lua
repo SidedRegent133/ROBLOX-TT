@@ -1,0 +1,23 @@
+-- language: Luau, file: AssetIds.lua, target: Roblox
+-- one roblox video asset id per clip, in the same slot order as FILES in Gui.lua.
+-- these are uploaded VIDEO assets (2,000 robux each, 13+ id verified, 20/day).
+-- if this table is empty, Gui.lua falls back to the hosted urls.
+return {
+    -- 1  = 0072decf9cdfee236c5363424fc4c22b.mp4
+    -- 2  = 242c039241f99043c9bf611a868ed5f1.mp4
+    -- 3  = 25f3b63fc238bdb8566e3b0068e8b028.mp4
+    -- 4  = 364bba9269d3b9f605929f78b509340c.mp4
+    -- 5  = 466db02d7e5aab9d6401094394b5f64e.mp4
+    -- 6  = 4e55a0aa7bbf36c8e6dcf04c399672c7.mp4
+    -- 7  = 651ea21b9ff0a53ae21cf9453d783d01.mp4
+    -- 8  = 980c0041725eae193e236fb596ace2f2.mp4
+    -- 9  = 9ccb69c63473ac48d6d280d25e6f467c.mp4
+    -- 10 = aeafedb8839207732d688120d2dfe3bc.mp4
+    -- 11 = b0cccb09eea98ecb2e58a9ea2ef1af21.mp4
+    -- 12 = ce969f96507235be5dddbb21a5652e36.mp4
+    -- 13 = d887aae7ec7d09ad3830e034b3f9f003.mp4
+    -- 14 = df357b9188835e90a8a54aff95cbc802.mp4
+    -- 15 = eb0aa056753bfec68ce6d3c201e8922d.mp4
+    -- 16 = f6f62f7e44d5de62ab98b1aedfc7c22d.mp4
+    -- 17 = feb75453e812542cf283bb49565c8c3a.mp4
+}

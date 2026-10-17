@@ -60,19 +60,47 @@ local FILES = {
 }
 
 local VIDEOS = {}
-if USE_ASSET_IDS and #ASSET_IDS > 0 then
-    for i, id in ipairs(ASSET_IDS) do
-        VIDEOS[i] = "rbxassetid://" .. tostring(id)
+local activeMode = "repo"
+
+-- ids handed in at runtime (Loader.lua reads AssetIds.lua) win over the in-file lists
+local function useAssetIds(ids)
+    local out = {}
+    for i, id in ipairs(ids) do
+        local s = tostring(id)
+        if s ~= "" and s ~= "nil" then
+            out[i] = "rbxassetid://" .. s
+        end
     end
-elseif #HOSTED > 0 then
-    for i, url in ipairs(HOSTED) do
-        VIDEOS[i] = url
+    if #out == 0 then
+        return false
     end
-else
+    VIDEOS = out
+    activeMode = "asset"
+    return true
+end
+
+local function buildDefaultSources()
+    if USE_ASSET_IDS and #ASSET_IDS > 0 then
+        if useAssetIds(ASSET_IDS) then
+            return
+        end
+    end
+    if #HOSTED > 0 then
+        VIDEOS = {}
+        for i, url in ipairs(HOSTED) do
+            VIDEOS[i] = url
+        end
+        activeMode = "hosted"
+        return
+    end
+    VIDEOS = {}
     for i, file in ipairs(FILES) do
         VIDEOS[i] = REPO_RAW .. file
     end
+    activeMode = "repo"
 end
+
+buildDefaultSources()
 
 ------------------------------------------------------------- look and feel
 local GUI_NAME = "TTGui"
@@ -333,7 +361,7 @@ local function build(playerGui)
         Parent = window,
     })
 
-    local mode = USE_ASSET_IDS and "asset" or "url"
+    local mode = activeMode
 
     local function hintText()
         local state = locked and "LOCKED - SCROLL/SWIPE" or "DRAG TO MOVE"
@@ -381,8 +409,8 @@ local function build(playerGui)
                 pcall(function() video:Play() end)
             else
                 status.Text = "SLOT " .. index .. " WILL NOT LOAD\n"
-                    .. (USE_ASSET_IDS and "asset id wrong or still moderating"
-                        or "client blocks remote urls - set USE_ASSET_IDS = true")
+                    .. (activeMode == "asset" and "asset id wrong or still moderating"
+                        or "this client refuses remote video - upload the clips as roblox assets")
                 warn("[TT] slot " .. index .. " never loaded: " .. uri)
             end
         end)
@@ -524,7 +552,17 @@ local function build(playerGui)
     return screen
 end
 
-function Gui.Init()
+function Gui.Init(opts)
+    opts = opts or {}
+
+    -- Loader.lua hands over the ids from AssetIds.lua when they exist
+    if type(opts.assetIds) == "table" and #opts.assetIds > 0 then
+        if useAssetIds(opts.assetIds) then
+            deck = {}
+            lastPlayed = nil
+        end
+    end
+
     local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
     local old = playerGui:FindFirstChild(GUI_NAME)
     if old then

@@ -33,6 +33,24 @@ local function fetch(file)
     return game:HttpGet(url), ref
 end
 
+-- AssetIds.lua is optional: it only exists once the clips have been uploaded
+-- as roblox video assets. without it we run on the hosted urls.
+local function fetchAssetIds()
+    local ok, source = pcall(fetch, "AssetIds.lua")
+    if not ok or type(source) ~= "string" or source == "" then
+        return {}
+    end
+    local chunk = loadstring(source)
+    if not chunk then
+        return {}
+    end
+    local ran, ids = pcall(chunk)
+    if ran and type(ids) == "table" then
+        return ids
+    end
+    return {}
+end
+
 local function boot()
     local source, ref = fetch("Gui.lua")
     local chunk, compileErr = loadstring(source)
@@ -45,8 +63,9 @@ local function boot()
         error("Gui.lua did not return a module with Init()")
     end
 
-    gui.Init()
-    print("[TT] gui up @ " .. tostring(ref):sub(1, 7))
+    local ids = fetchAssetIds()
+    gui.Init({ assetIds = ids })
+    print(("[TT] gui up @ %s | %d asset ids"):format(tostring(ref):sub(1, 7), #ids))
     return gui
 end
 
