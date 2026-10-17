@@ -1,20 +1,38 @@
--- language: Luau, file: Gui.lua, target: Roblox executor (Synapse/Fluxus/Solara), returns { Init } for Loader.lua
+local HOSTED = {
+    "https://files.catbox.moe/frzu3r.mp4",
+    "https://files.catbox.moe/ropx9x.mp4",
+    "https://files.catbox.moe/wybhcd.mp4",
+    "https://files.catbox.moe/6rm81o.mp4",
+    "https://files.catbox.moe/fq547k.mp4",
+    "https://files.catbox.moe/fdsnar.mp4",
+    "https://files.catbox.moe/f4bnen.mp4",
+    "https://files.catbox.moe/zdhcfx.mp4",
+    "https://files.catbox.moe/52sc6v.mp4",
+    "https://files.catbox.moe/4phn8i.mp4",
+    "https://files.catbox.moe/qzawf3.mp4",
+    "https://files.catbox.moe/hq0ujg.mp4",
+    "https://files.catbox.moe/sqxpik.mp4",
+    "https://files.catbox.moe/w0w4gh.mp4",
+    "https://files.catbox.moe/60zx96.mp4",
+    "https://files.catbox.moe/nboibe.mp4",
+    "https://files.catbox.moe/jn760x.mp4",
+
+}
+
+Roblox executor (Synapse/Fluxus/Solara), returns { Init } for Loader.lua
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local Gui = {}
 
 ------------------------------------------------------------- video sources
--- flips between the two ways a clip can reach the VideoFrame:
---   false -> streams the mp4 straight out of the repo (no upload, works only
---            if the client accepts remote uris)
---   true  -> uses uploaded roblox video assets (dashboard upload, Premium
---            required). paste the ids into ASSET_IDS in the same slot order
+-- false -> streams the mp4 straight out of the repo (no upload)
+-- true  -> uploaded roblox video assets (dashboard upload, Premium required),
+--          ids pasted into ASSET_IDS in the same slot order as FILES
 local USE_ASSET_IDS = false
 
 local REPO_RAW = "https://raw.githubusercontent.com/SidedRegent133/ROBLOX-TT/main/"
 
--- slot order = the FILES list below; paste matching ids when USE_ASSET_IDS = true
 local ASSET_IDS = {
     -- "1234567890",
 }
@@ -44,6 +62,15 @@ if USE_ASSET_IDS then
     for i, id in ipairs(ASSET_IDS) do
         VIDEOS[i] = "rbxassetid://" .. tostring(id)
     end
+elseif #HOSTED > 0 then
+    for i, url in ipairs(HOSTED) do
+        VIDEOS[i] = url
+    end
+else
+    for i, file in ipairs(FILES) do
+        VIDEOS[i] = REPO_RAW .. file
+    end
+end
 else
     for i, file in ipairs(FILES) do
         VIDEOS[i] = REPO_RAW .. file
@@ -79,7 +106,7 @@ local function reshuffle()
     end
 end
 
--- +1 draws from the front, -1 from the back; both are random order, deck never repeats until empty
+-- +1 draws from the front, -1 from the back; both are random, deck never repeats until empty
 local function pick(step)
     if #VIDEOS == 0 then
         return nil
@@ -92,29 +119,71 @@ local function pick(step)
     return idx
 end
 
-local function make(class, props)
-    local inst = Instance.new(class)
+-- every property assignment is defended: one rejected property on an unknown
+-- client build used to abort the whole Init and leave a dead frame behind
+local function setProps(inst, props)
+    if type(props) ~= "table" then
+        return
+    end
     local parent = props.Parent
     for k, v in pairs(props) do
         if k ~= "Parent" then
-            inst[k] = v
+            local ok, err = pcall(function()
+                inst[k] = v
+            end)
+            if not ok then
+                warn(("[TT] %s.%s rejected: %s"):format(inst.ClassName, tostring(k), tostring(err)))
+            end
         end
     end
-    inst.Parent = parent
+    if parent then
+        inst.Parent = parent
+    end
+end
+
+local function make(class, props)
+    local ok, inst = pcall(Instance.new, class)
+    if not ok or not inst then
+        warn("[TT] cannot create " .. tostring(class) .. ": " .. tostring(inst))
+        return nil
+    end
+    setProps(inst, props)
     return inst
 end
 
-function Gui.Init()
-    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-    local old = playerGui:FindFirstChild(GUI_NAME)
-    if old then
-        old:Destroy()
-    end
+------------------------------------------------------------- error surface
+-- if the build dies, paint the reason on screen instead of leaving a black hole
+local function showFatal(playerGui, err)
+    warn("[TT] fatal: " .. tostring(err))
+    local screen = Instance.new("ScreenGui")
+    screen.Name = GUI_NAME
+    screen.ResetOnSpawn = false
+    screen.IgnoreGuiInset = true
+    screen.DisplayOrder = 1000
+    screen.Parent = playerGui
 
+    local box = Instance.new("TextLabel")
+    box.Size = UDim2.new(0.8, 0, 0, 120)
+    box.Position = UDim2.fromScale(0.5, 0.15)
+    box.AnchorPoint = Vector2.new(0.5, 0)
+    box.BackgroundColor3 = Color3.fromRGB(120, 12, 24)
+    box.BorderSizePixel = 0
+    box.Font = Enum.Font.Code
+    box.TextSize = 14
+    box.TextWrapped = true
+    box.TextColor3 = WHITE
+    box.Text = "[TT] " .. tostring(err) .. "\n\npaste this to fix it"
+    box.Parent = screen
+    return screen
+end
+
+------------------------------------------------------------- build
+local function build(playerGui)
     local viewport = workspace.CurrentCamera.ViewportSize
     local locked = false
     local lastSkip = 0
     local showTag = 0
+    local problems = 0
 
     local screen = make("ScreenGui", {
         Name = GUI_NAME,
@@ -124,6 +193,9 @@ function Gui.Init()
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
         Parent = playerGui,
     })
+    if not screen then
+        error("ScreenGui refused to instantiate")
+    end
 
     local window = make("Frame", {
         Name = "Window",
@@ -135,6 +207,7 @@ function Gui.Init()
         Active = true,
         Parent = screen,
     })
+
     make("UISizeConstraint", {
         MinSize = Vector2.new(240, 420),
         MaxSize = Vector2.new(460, 900),
@@ -224,11 +297,12 @@ function Gui.Init()
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.new(1, -24, 0, 44),
+        Size = UDim2.new(1, -24, 0, 60),
         Font = Enum.Font.GothamBold,
         TextSize = 15,
         TextColor3 = WHITE,
         TextStrokeTransparency = 0.4,
+        TextWrapped = true,
         ZIndex = 3,
         Text = "",
         Parent = holder,
@@ -262,13 +336,20 @@ function Gui.Init()
         Parent = window,
     })
 
+    local mode = USE_ASSET_IDS and "asset" or "url"
+    local function hintText()
+        local state = locked and "LOCKED - SCROLL/SWIPE" or "DRAG TO MOVE"
+        return ("%s | %d clips | %s%s"):format(mode, #VIDEOS, state, problems > 0
+            and (" | " .. problems .. " prop fails") or "")
+    end
+
     ------------------------------------------------------------- playback
     local function show(index)
         local uri = VIDEOS[index]
         showTag += 1
         local tag = showTag
 
-        status.Text = "LOADING"
+        status.Text = "LOADING " .. index .. " / " .. #VIDEOS
         counter.Text = index .. " / " .. #VIDEOS
         pcall(function() video:Stop() end)
 
@@ -283,7 +364,7 @@ function Gui.Init()
             end)
         end
         if not ok then
-            status.Text = "SLOT " .. index .. " REJECTED"
+            status.Text = "SLOT " .. index .. " REJECTED\nthis client has no video property"
             warn("[TT] slot " .. index .. " rejected: " .. uri)
             return
         end
@@ -302,7 +383,9 @@ function Gui.Init()
                 status.Text = ""
                 pcall(function() video:Play() end)
             else
-                status.Text = "SLOT " .. index .. " WILL NOT LOAD"
+                status.Text = "SLOT " .. index .. " WILL NOT LOAD\n"
+                    .. (USE_ASSET_IDS and "asset id is wrong or still moderating"
+                        or "this client blocks remote urls - set USE_ASSET_IDS = true")
                 warn("[TT] slot " .. index .. " never loaded: " .. uri)
             end
         end)
@@ -313,7 +396,7 @@ function Gui.Init()
             return
         end
         if #VIDEOS == 0 then
-            status.Text = "NO VIDEOS - FILL FILES IN Gui.lua"
+            status.Text = "NO VIDEOS - FILL FILES OR ASSET_IDS"
             return
         end
         local now = os.clock()
@@ -330,13 +413,19 @@ function Gui.Init()
     ------------------------------------------------------------- lock state
     local function setLocked(value)
         locked = value
-        lockBtn.Text = locked and "UNLOCK" or "LOCK"
-        lockBtn.BackgroundColor3 = locked and ACCENT or GREY
-        hint.Text = locked and "SCROLL OR SWIPE - NEXT VIDEO" or "DRAG TO MOVE - LOCK TO BROWSE"
+        if lockBtn then
+            lockBtn.Text = locked and "UNLOCK" or "LOCK"
+            lockBtn.BackgroundColor3 = locked and ACCENT or GREY
+        end
+        if hint then
+            hint.Text = hintText()
+        end
     end
-    lockBtn.Activated:Connect(function()
-        setLocked(not locked)
-    end)
+    if lockBtn then
+        lockBtn.Activated:Connect(function()
+            setLocked(not locked)
+        end)
+    end
 
     ------------------------------------------------------------- drag
     local dragging = false
@@ -363,18 +452,20 @@ function Gui.Init()
     end
 
     for _, surface in { window, bar, holder } do
-        surface.InputBegan:Connect(function(input)
-            local kind = input.UserInputType
-            if kind == Enum.UserInputType.Touch then
-                if locked then
-                    touchStart = input.Position
-                else
+        if surface then
+            surface.InputBegan:Connect(function(input)
+                local kind = input.UserInputType
+                if kind == Enum.UserInputType.Touch then
+                    if locked then
+                        touchStart = input.Position
+                    else
+                        startDrag(input)
+                    end
+                elseif kind == Enum.UserInputType.MouseButton1 and not locked then
                     startDrag(input)
                 end
-            elseif kind == Enum.UserInputType.MouseButton1 and not locked then
-                startDrag(input)
-            end
-        end)
+            end)
+        end
     end
 
     ------------------------------------------------------------- input wiring
@@ -415,23 +506,42 @@ function Gui.Init()
         end
     end)
 
-    closeBtn.Activated:Connect(function()
-        for _, conn in conns do
-            conn:Disconnect()
-        end
-        pcall(function() video:Stop() end)
-        screen:Destroy()
-    end)
+    if closeBtn then
+        closeBtn.Activated:Connect(function()
+            for _, conn in conns do
+                conn:Disconnect()
+            end
+            pcall(function() video:Stop() end)
+            screen:Destroy()
+        end)
+    end
 
     ------------------------------------------------------------- first frame
     setLocked(false)
     if #VIDEOS > 0 then
         show(pick(1) or 1)
     else
-        status.Text = "NO VIDEOS - FILL FILES IN Gui.lua"
+        status.Text = "NO VIDEOS - FILL FILES OR ASSET_IDS"
     end
 
     return screen
 end
 
+function Gui.Init()
+    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local old = playerGui:FindFirstChild(GUI_NAME)
+    if old then
+        old:Destroy()
+    end
+
+    local ok, err = pcall(build, playerGui)
+    if not ok then
+        showFatal(playerGui, err)
+        return nil
+    end
+    return err -- build returns the screen on success
+end
+
 return Gui
+
+
