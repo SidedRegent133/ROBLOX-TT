@@ -19,7 +19,7 @@ local HOSTED = {
 
 }
 
-Roblox executor (Synapse/Fluxus/Solara), returns { Init } for Loader.lua
+-- Roblox executor (Synapse/Fluxus/Solara), returns { Init } for Loader.lua
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
@@ -537,6 +537,7 @@ function Gui.Init()
 end
 
 return Gui
+
 
 
 
