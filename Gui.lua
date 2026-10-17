@@ -4,14 +4,53 @@ local UserInputService = game:GetService("UserInputService")
 
 local Gui = {}
 
-------------------------------------------------------------- configuration
--- one entry per video, list order does not matter (deck is shuffled):
---   "rbxassetid://<id>"   roblox-hosted video (creator dashboard upload, Premium required)
---   "https://<url>.mp4"   direct url, tried as-is before the asset path
-local VIDEOS = {
-    -- "rbxassetid://0000000000",
+------------------------------------------------------------- video sources
+-- flips between the two ways a clip can reach the VideoFrame:
+--   false -> streams the mp4 straight out of the repo (no upload, works only
+--            if the client accepts remote uris)
+--   true  -> uses uploaded roblox video assets (dashboard upload, Premium
+--            required). paste the ids into ASSET_IDS in the same slot order
+local USE_ASSET_IDS = false
+
+local REPO_RAW = "https://raw.githubusercontent.com/SidedRegent133/ROBLOX-TT/main/"
+
+-- slot order = the FILES list below; paste matching ids when USE_ASSET_IDS = true
+local ASSET_IDS = {
+    -- "1234567890",
 }
 
+local FILES = {
+    "0072decf9cdfee236c5363424fc4c22b.mp4",
+    "242c039241f99043c9bf611a868ed5f1.mp4",
+    "25f3b63fc238bdb8566e3b0068e8b028.mp4",
+    "364bba9269d3b9f605929f78b509340c.mp4",
+    "466db02d7e5aab9d6401094394b5f64e.mp4",
+    "4e55a0aa7bbf36c8e6dcf04c399672c7.mp4",
+    "651ea21b9ff0a53ae21cf9453d783d01.mp4",
+    "980c0041725eae193e236fb596ace2f2.mp4",
+    "9ccb69c63473ac48d6d280d25e6f467c.mp4",
+    "aeafedb8839207732d688120d2dfe3bc.mp4",
+    "b0cccb09eea98ecb2e58a9ea2ef1af21.mp4",
+    "ce969f96507235be5dddbb21a5652e36.mp4",
+    "d887aae7ec7d09ad3830e034b3f9f003.mp4",
+    "df357b9188835e90a8a54aff95cbc802.mp4",
+    "eb0aa056753bfec68ce6d3c201e8922d.mp4",
+    "f6f62f7e44d5de62ab98b1aedfc7c22d.mp4",
+    "feb75453e812542cf283bb49565c8c3a.mp4",
+}
+
+local VIDEOS = {}
+if USE_ASSET_IDS then
+    for i, id in ipairs(ASSET_IDS) do
+        VIDEOS[i] = "rbxassetid://" .. tostring(id)
+    end
+else
+    for i, file in ipairs(FILES) do
+        VIDEOS[i] = REPO_RAW .. file
+    end
+end
+
+------------------------------------------------------------- look and feel
 local GUI_NAME = "TTGui"
 local BLACK    = Color3.fromRGB(0, 0, 0)
 local DARK     = Color3.fromRGB(16, 16, 16)
@@ -19,6 +58,7 @@ local GREY     = Color3.fromRGB(44, 44, 44)
 local WHITE    = Color3.fromRGB(255, 255, 255)
 local ACCENT   = Color3.fromRGB(254, 44, 85) -- tiktok red
 local SKIP_GAP = 0.25                         -- seconds between skips (wheel debounce)
+local LOAD_WAIT = 8                           -- seconds before a clip is declared dead
 
 ------------------------------------------------------------- random deck
 local deck = {}
@@ -169,10 +209,9 @@ function Gui.Init()
         BackgroundColor3 = BLACK,
         BorderSizePixel = 0,
         Volume = 0.6,
+        Looped = true,
         Parent = holder,
     })
-    pcall(function() video.Looped = true end) -- property name differs across client builds
-    pcall(function() video.Loop = true end)
     make("UIAspectRatioConstraint", {
         AspectRatio = 9 / 16,
         AspectType = Enum.AspectType.FitsWithinParent,
@@ -233,9 +272,10 @@ function Gui.Init()
         counter.Text = index .. " / " .. #VIDEOS
         pcall(function() video:Stop() end)
 
-        -- modern clients stream from Content, older ones still read .Video: try both
+        -- VideoContent is the Content-typed property on current clients; Video is
+        -- the older string property (asset ids only). try modern, fall back.
         local ok = pcall(function()
-            video.Content = Content.fromUri(uri)
+            video.VideoContent = Content.fromUri(uri)
         end)
         if not ok then
             ok = pcall(function()
@@ -244,15 +284,27 @@ function Gui.Init()
         end
         if not ok then
             status.Text = "SLOT " .. index .. " REJECTED"
+            warn("[TT] slot " .. index .. " rejected: " .. uri)
             return
         end
         pcall(function() video:Play() end)
+        print("[TT] loading slot " .. index .. " -> " .. uri)
 
-        task.delay(4, function()
+        task.spawn(function()
+            local deadline = os.clock() + LOAD_WAIT
+            while tag == showTag and not video.IsLoaded and os.clock() < deadline do
+                task.wait(0.1)
+            end
             if tag ~= showTag then
                 return
             end
-            status.Text = video.Playing and "" or "SLOT " .. index .. " NOT LOADING"
+            if video.IsLoaded then
+                status.Text = ""
+                pcall(function() video:Play() end)
+            else
+                status.Text = "SLOT " .. index .. " WILL NOT LOAD"
+                warn("[TT] slot " .. index .. " never loaded: " .. uri)
+            end
         end)
     end
 
@@ -261,7 +313,7 @@ function Gui.Init()
             return
         end
         if #VIDEOS == 0 then
-            status.Text = "NO VIDEOS - FILL VIDEOS IN Gui.lua"
+            status.Text = "NO VIDEOS - FILL FILES IN Gui.lua"
             return
         end
         local now = os.clock()
@@ -376,11 +428,10 @@ function Gui.Init()
     if #VIDEOS > 0 then
         show(pick(1) or 1)
     else
-        status.Text = "NO VIDEOS - FILL VIDEOS IN Gui.lua"
+        status.Text = "NO VIDEOS - FILL FILES IN Gui.lua"
     end
 
     return screen
 end
 
 return Gui
-

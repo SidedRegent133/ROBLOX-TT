@@ -4,12 +4,15 @@ local REPO = "SidedRegent133/ROBLOX-TT"
 local BRANCH = "main"
 
 local function fetch(file)
-    local url = ("https://raw.githubusercontent.com/%s/%s/%s"):format(REPO, BRANCH, file)
+    -- cache-buster: raw.githubusercontent caches for ~5 min, which serves stale
+    -- builds right after a push
+    local url = ("https://raw.githubusercontent.com/%s/%s/%s?t=%d"):format(REPO, BRANCH, file, os.time())
     return game:HttpGet(url)
 end
 
 local function boot()
-    local chunk, compileErr = loadstring(fetch("Gui.lua"))
+    local source = fetch("Gui.lua")
+    local chunk, compileErr = loadstring(source)
     if not chunk then
         error("Gui.lua failed to compile: " .. tostring(compileErr))
     end
@@ -20,6 +23,7 @@ local function boot()
     end
 
     gui.Init()
+    print("[TT] gui up")
     return gui
 end
 
