@@ -65,13 +65,7 @@ if USE_ASSET_IDS then
 elseif #HOSTED > 0 then
     for i, url in ipairs(HOSTED) do
         VIDEOS[i] = url
-    end
-else
-    for i, file in ipairs(FILES) do
-        VIDEOS[i] = REPO_RAW .. file
-    end
-end
-else
+    else
     for i, file in ipairs(FILES) do
         VIDEOS[i] = REPO_RAW .. file
     end
@@ -371,7 +365,7 @@ local function build(playerGui)
         pcall(function() video:Play() end)
         print("[TT] loading slot " .. index .. " -> " .. uri)
 
-        task.spawn(function()
+        coroutine.wrap(function()
             local deadline = os.clock() + LOAD_WAIT
             while tag == showTag and not video.IsLoaded and os.clock() < deadline do
                 task.wait(0.1)
@@ -543,5 +537,8 @@ function Gui.Init()
 end
 
 return Gui
+
+
+
 
 
