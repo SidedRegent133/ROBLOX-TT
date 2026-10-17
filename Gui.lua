@@ -284,7 +284,7 @@ local function build(playerGui)
     })
     make("UIAspectRatioConstraint", {
         AspectRatio = 9 / 16,
-        AspectType = Enum.AspectType.FitsWithinParent,
+        AspectType = Enum.AspectType.FitWithinMaxSize,
         DominantAxis = Enum.DominantAxis.Height,
         Parent = video,
     })
@@ -348,7 +348,7 @@ local function build(playerGui)
 
         status.Text = "LOADING " .. index .. " / " .. #VIDEOS
         counter.Text = index .. " / " .. #VIDEOS
-        pcall(function() video:Stop() end)
+        pcall(function() video:Pause() end) -- VideoFrame has Pause, not Stop
 
         -- VideoContent is the Content-typed property on current clients; Video is
         -- the older string property (asset ids only). try modern, fall back.
@@ -508,7 +508,7 @@ local function build(playerGui)
             for _, conn in conns do
                 conn:Disconnect()
             end
-            pcall(function() video:Stop() end)
+            pcall(function() video:Pause() end)
             screen:Destroy()
         end)
     end
