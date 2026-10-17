@@ -136,6 +136,7 @@ for ($i = 0; $i -lt $files.Count; $i++) {
 }
 
 $done = 0
+$uploadedOk = 0
 foreach ($t in $todo) {
     $done++
     $slot = $t.Slot
@@ -157,7 +158,14 @@ foreach ($t in $todo) {
         $resp = $mp.Client.PostAsync($createUrl, $mp.Content).GetAwaiter().GetResult()
         $body = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
         if (-not $resp.IsSuccessStatusCode) {
-            Write-Warning ("  rejected ({0}): {1}" -f [int]$resp.StatusCode, $body)
+            $code = [int]$resp.StatusCode
+            Write-Warning ("  rejected ({0}): {1}" -f $code, $body)
+            if ($code -eq 401 -or $code -eq 403) {
+                Write-Warning "  the api key is not allowed to create assets, stopping -- every clip would fail the same way"
+                Write-Warning "  fix: creator dashboard -> this api key -> add the Assets system with write (Add assets) permission"
+                Write-Warning "  also check the key's IP allowlist is empty or includes your current ip"
+                break
+            }
             continue
         }
         $op = ($body | ConvertFrom-Json).path
@@ -186,6 +194,7 @@ foreach ($t in $todo) {
             }
         }
         if (-not $assetId) { Write-Warning "  no asset id returned yet (still processing)" }
+        if ($assetId) { $uploadedOk++ }
         $slotIds[$slot - 1] = $assetId
     } catch {
         Write-Warning ("  error: {0}" -f $_.Exception.Message)
@@ -212,7 +221,7 @@ $lines | Set-Content -Path $target -Encoding ASCII
 Write-Host ("[upload] wrote {0}" -f $target)
 
 $filled = @($slotIds | Where-Object { $_ }).Count
-Write-Host ("[upload] done: {0}/{1} slots have ids ({2:N0} robux spent this run)" -f $filled, $slotIds.Count, ($todo.Count * $costPer))
+Write-Host ("[upload] done: {0}/{1} slots have ids ({2:N0} robux spent this run)" -f $filled, $slotIds.Count, ($uploadedOk * $costPer))
 
 if ($filled -lt $slotIds.Count) {
     Write-Host "[upload] some slots are still empty -- re-run this script after moderation finishes"
